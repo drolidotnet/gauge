@@ -35,20 +35,54 @@ struct GaugeProvider: TimelineProvider {
     }
 }
 
+// Semicircular speedometer arc anchored to the bottom of its rect.
+// progress is the fraction of the half-circle to draw (0...1).
+struct SpeedometerArc: Shape {
+    var progress: Double
+    var lineWidth: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.maxY)
+        let radius = min(rect.width / 2, rect.height) - lineWidth / 2
+        var path = Path()
+        path.addArc(
+            center: center,
+            radius: radius,
+            startAngle: .degrees(180),
+            endAngle: .degrees(180 + 180 * max(0, min(progress, 1))),
+            clockwise: false
+        )
+        return path
+    }
+}
+
 struct GaugeWidgetEntryView: View {
     var entry: GaugeEntry
 
+    private let lineWidth: CGFloat = 10
+
     var body: some View {
-        VStack {
+        let color = GaugeColor.scoreColor(Double(entry.score))
+        VStack(spacing: 4) {
             Text("F&G Index")
-                .font(.headline)
-            Text("\(entry.score)")
-                .font(.system(size: 36, weight: .bold))
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+            ZStack(alignment: .bottom) {
+                SpeedometerArc(progress: 1, lineWidth: lineWidth)
+                    .stroke(Color.secondary.opacity(0.25), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                SpeedometerArc(progress: Double(entry.score) / 100, lineWidth: lineWidth)
+                    .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                Text("\(entry.score)")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundColor(color)
+            }
+            .frame(height: 64)
             Text(entry.rating)
-                .font(.subheadline)
-                .foregroundColor(GaugeColor.scoreColor(Double(entry.score)))
+                .font(.caption2)
+                .foregroundColor(.secondary)
         }
-        .padding()
+        .padding(.vertical, 2)
     }
 }
 
@@ -66,5 +100,7 @@ struct GaugeWidget: Widget {
 #Preview(as: .systemSmall) {
     GaugeWidget()
 } timeline: {
-    GaugeEntry(date: .now, score: 50, rating: "Neutral")
+    GaugeEntry(date: .now, score: 49, rating: "Neutral")
+    GaugeEntry(date: .now, score: 15, rating: "Extreme Fear")
+    GaugeEntry(date: .now, score: 85, rating: "Extreme Greed")
 }
