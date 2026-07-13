@@ -78,10 +78,6 @@ struct GaugeWidgetEntryView: View {
         } currentValueLabel: {
             Text("\(entry.score)")
                 .font(.system(.title3, design: .rounded, weight: .bold))
-        } minimumValueLabel: {
-            Text("0").font(.caption2)
-        } maximumValueLabel: {
-            Text("100").font(.caption2)
         }
         .gaugeStyle(.accessoryCircular)
         .tint(GaugeColor.scoreColor(Double(entry.score)))
