@@ -9,7 +9,10 @@
     "ios": {
       "bundleIdentifier": "com.Hardwire.Gauge",
       "appleTeamId": "9QNUSPJFWW",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,6 +33,23 @@
           "appleTeamId": "9QNUSPJFWW"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.Hardwire.Gauge.GaugeWidget",
+                  "targetName": "GaugeWidget"
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "89aa1615-4253-4d81-95e7-13474d762295"
+      }
+    }
   }
 }
