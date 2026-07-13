@@ -58,12 +58,39 @@ struct SpeedometerArc: Shape {
 
 struct GaugeWidgetEntryView: View {
     var entry: GaugeEntry
+    @Environment(\.widgetFamily) var family
 
     private let lineWidth: CGFloat = 10
 
     var body: some View {
+        switch family {
+        case .accessoryCircular:
+            circularView
+        default:
+            homeScreenView
+        }
+    }
+
+    // Lock Screen ring, like the Weather temperature gauge.
+    var circularView: some View {
+        Gauge(value: Double(max(0, min(entry.score, 100))), in: 0...100) {
+            Text("F&G")
+        } currentValueLabel: {
+            Text("\(entry.score)")
+                .font(.system(.title3, design: .rounded, weight: .bold))
+        } minimumValueLabel: {
+            Text("0").font(.caption2)
+        } maximumValueLabel: {
+            Text("100").font(.caption2)
+        }
+        .gaugeStyle(.accessoryCircular)
+        .tint(GaugeColor.scoreColor(Double(entry.score)))
+        .widgetAccentable()
+    }
+
+    var homeScreenView: some View {
         let color = GaugeColor.scoreColor(Double(entry.score))
-        VStack(spacing: 4) {
+        return VStack(spacing: 4) {
             Text("F&G Index")
                 .font(.caption)
                 .fontWeight(.semibold)
@@ -94,7 +121,14 @@ struct GaugeWidget: Widget {
             GaugeWidgetEntryView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
+        .supportedFamilies([.systemSmall, .accessoryCircular])
     }
+}
+
+#Preview(as: .accessoryCircular) {
+    GaugeWidget()
+} timeline: {
+    GaugeEntry(date: .now, score: 49, rating: "Neutral")
 }
 
 #Preview(as: .systemSmall) {
