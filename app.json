@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Gauge",
+    "slug": "gauge",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.Hardwire.Gauge",
+      "appleTeamId": "9QNUSPJFWW",
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "@bacons/apple-targets",
+        {
+          "appleTeamId": "9QNUSPJFWW"
+        }
+      ]
+    ]
+  }
+}
