@@ -9,10 +9,10 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = GaugeViewModel()
+
     var body: some View {
         GaugeMainView()
             .environmentObject(viewModel)
-            .onAppear { viewModel.fetch() }
     }
 }
 

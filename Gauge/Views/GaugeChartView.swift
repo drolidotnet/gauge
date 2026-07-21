@@ -1,99 +1,131 @@
-//
-//  GaugeChartView.swift
-//  Gauge
-//
-//  Created by Oliver Drozdz on 2/7/2025.
-//
-
+import Charts
 import SwiftUI
 
-struct GaugeChartView: View {
-    @EnvironmentObject var viewModel: GaugeViewModel
-    @State private var dragLocation: CGPoint? = nil
-    @State private var selectedIndex: Int? = nil
+struct GaugeHistoryChartView: View {
+    let history: [GaugeHistoryPoint]
+    let range: GaugeChartRange
+
+    @State private var selectedDate: Date?
+
+    private var points: [GaugeHistoryPoint] {
+        range.filter(history).sorted { $0.timestamp < $1.timestamp }
+    }
+
+    private var selection: GaugeHistoryPoint? {
+        guard let selectedDate else { return nil }
+        return GaugeChartSelection.nearestHistoryPoint(to: selectedDate, in: points)
+    }
+
     var body: some View {
-        GeometryReader { geo in
-            let data = viewModel.historicalData
-            let maxY = data.map { $0.y }.max() ?? 100
-            let minY = data.map { $0.y }.min() ?? 0
-            let points = data.enumerated().map { (i, point) in
-                CGPoint(
-                    x: geo.size.width * CGFloat(i) / CGFloat(max(data.count - 1, 1)),
-                    y: geo.size.height * CGFloat(1 - (point.y - minY) / max(1, maxY - minY))
-                )
-            }
-            ZStack {
-                // Background grid
-                ForEach(0..<5) { i in
-                    let y = geo.size.height * CGFloat(i) / 4
-                    Path { path in
-                        path.move(to: CGPoint(x: 0, y: y))
-                        path.addLine(to: CGPoint(x: geo.size.width, y: y))
-                    }
-                    .stroke(Color.gray.opacity(0.08), lineWidth: 1)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Fear & Greed History")
+                        .font(.headline)
+                    Text("Overall index · 0–100")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                // Line chart
-                if points.count > 1 {
-                    Path { path in
-                        path.move(to: points.first ?? .zero)
-                        for pt in points.dropFirst() {
-                            path.addLine(to: pt)
+
+                Spacer()
+
+                if let selection {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(selection.displayScore)")
+                            .font(.title3.bold().monospacedDigit())
+                            .foregroundStyle(GaugePalette.ratingColor(selection.rating))
+                        Text(selection.rating.displayName)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(GaugePalette.ratingColor(selection.rating))
+                    }
+                }
+            }
+
+            if points.isEmpty {
+                ContentUnavailableView {
+                    Label("History unavailable", systemImage: "chart.xyaxis.line")
+                } description: {
+                    Text("No overall history is available for this range.")
+                }
+                .frame(maxWidth: .infinity, minHeight: 210)
+            } else {
+                Chart {
+                    ForEach(points, id: \.timestamp) { point in
+                        AreaMark(
+                            x: .value("Date", point.timestamp),
+                            yStart: .value("Minimum", 0),
+                            yEnd: .value("Score", point.score)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.accentColor.opacity(0.2), Color.accentColor.opacity(0.015)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+
+                        LineMark(
+                            x: .value("Date", point.timestamp),
+                            y: .value("Score", point.score)
+                        )
+                        .foregroundStyle(Color.accentColor)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                        .interpolationMethod(.linear)
+                    }
+
+                    if let selection {
+                        RuleMark(x: .value("Selected date", selection.timestamp))
+                            .foregroundStyle(.secondary.opacity(0.7))
+
+                        PointMark(
+                            x: .value("Selected date", selection.timestamp),
+                            y: .value("Selected score", selection.score)
+                        )
+                        .foregroundStyle(GaugePalette.ratingColor(selection.rating))
+                        .symbolSize(60)
+                    }
+                }
+                .frame(height: 220)
+                .chartYScale(domain: 0...100)
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                        AxisGridLine().foregroundStyle(Color.secondary.opacity(0.12))
+                        AxisTick().foregroundStyle(Color.secondary.opacity(0.35))
+                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
+                        AxisGridLine().foregroundStyle(Color.secondary.opacity(0.12))
+                        AxisValueLabel {
+                            if let score = value.as(Int.self) {
+                                Text("\(score)")
+                            }
                         }
                     }
-                    .stroke(
-                        GaugeColor.scoreColor(viewModel.currentScore),
-                        style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
-                    )
                 }
-                // Interactive marker
-                if let selectedIndex = selectedIndex, data.indices.contains(selectedIndex) {
-                    let pt = points[selectedIndex]
-                    let value = data[selectedIndex].y
-                    let rating = data[selectedIndex].rating.capitalized
-                    VStack(spacing: 2) {
-                        Text("\(Int(value))")
-                            .font(.caption.bold())
-                            .foregroundColor(.white)
-                        Text(rating)
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                    .padding(6)
-                    .background(Color.black.opacity(0.7))
-                    .cornerRadius(8)
-                    .position(x: pt.x, y: pt.y - 24)
-                    Circle()
-                        .fill(GaugeColor.scoreColor(value))
-                        .frame(width: 14, height: 14)
-                        .position(pt)
+                .chartXSelection(value: $selectedDate)
+                .accessibilityLabel("Overall Fear and Greed Index history")
+                .accessibilityHint("Touch and drag across the chart to inspect a date")
+
+                if let selection {
+                    Text("\(selection.timestamp.formatted(date: .abbreviated, time: .omitted)) · \(selection.displayScore) · \(selection.rating.displayName)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Label("Touch and drag to inspect the index", systemImage: "hand.draw")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
-            .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    dragLocation = value.location
-                    let x = value.location.x
-                    let idx = Int(round(x / geo.size.width * CGFloat(max(data.count - 1, 1))))
-                    if data.indices.contains(idx) {
-                        selectedIndex = idx
-                    }
-                }
-                .onEnded { _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                        selectedIndex = nil
-                    }
-                }
-            )
         }
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(.systemBackground).opacity(0.7))
-                .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 2)
-        )
+        .padding(18)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.primary.opacity(0.055), lineWidth: 1)
+        }
+        .onChange(of: range) { _, _ in selectedDate = nil }
     }
-}
-
-#Preview {
-    GaugeChartView()
-        .environmentObject(GaugeViewModel())
 }

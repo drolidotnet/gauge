@@ -12,6 +12,5 @@ import SwiftUI
 struct GaugeWidgetBundle: WidgetBundle {
     var body: some Widget {
         GaugeWidget()
-        GaugeHybridWidget()
     }
 }

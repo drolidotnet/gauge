@@ -1,68 +1,121 @@
-//
-//  GaugeDialView.swift
-//  Gauge
-//
-//  Created by Oliver Drozdz on 2/7/2025.
-//
-
 import SwiftUI
 
 struct GaugeDialView: View {
-    @EnvironmentObject var viewModel: GaugeViewModel
+    private static let sweepFraction: CGFloat = 220 / 360
 
-//    func scoreColor(_ score: Double) -> Color {
-//        let clampedScore = max(0, min(score, 100))
-//        let t = clampedScore / 100.0
-//        let red: Double
-//        let green: Double
-//        if t < 0.5 {
-//            red = 1.0
-//            green = t * 1.0
-//        } else {
-//            red = 1.0 - (t - 0.5) * 2.0
-//            green = 0.5 + (t - 0.5) * 1.0
-//        }
-//        let adjustedRed = pow(red, 0.9)
-//        let adjustedGreen = pow(green, 0.9)
-//        return Color(red: adjustedRed, green: adjustedGreen, blue: 0)
-//    }
+    private let score: Double?
+    private let rating: FearGreedRating?
+    private let isStale: Bool
+    private let lineWidth: CGFloat
+
+    init(
+        score: Double?,
+        rating: FearGreedRating?,
+        isStale: Bool = false,
+        lineWidth: CGFloat = 25
+    ) {
+        self.score = score
+        self.rating = rating
+        self.isStale = isStale
+        self.lineWidth = lineWidth
+    }
+
+    private var progress: Double {
+        max(0, min((score ?? 0) / 100, 1))
+    }
 
     var body: some View {
-        let color = GaugeColor.scoreColor(viewModel.currentScore)
-        let sweep: CGFloat = 200.0 / 360.0
-        let startAngle: Double = -190 // degrees, so -100 to +100 is 200deg sweep
-        ZStack {
-            Circle()
-                .trim(from: 0, to: sweep)
-                .stroke(Color.gray.opacity(0.15), lineWidth: 24)
-                .rotationEffect(.degrees(startAngle))
-            Circle()
-                .trim(from: 0, to: CGFloat(min(viewModel.currentScore / 100, 1)) * sweep)
-                .stroke(
-                    color,
-                    style: StrokeStyle(lineWidth: 24, lineCap: .butt)
-                )
-                .rotationEffect(.degrees(startAngle))
-//                .animation(.spring(response: 0.7, dampingFraction: 0.7), value: viewModel.currentScore)
-            VStack(spacing: 4) {
-                Text("\(Int(viewModel.currentScore))")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                Text(viewModel.currentRating)
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+        GeometryReader { proxy in
+            let diameter = min(proxy.size.width, proxy.size.height)
+            let radius = max(0, (diameter - lineWidth) / 2)
+            // The dial is laid out in this local square before the square itself
+            // is centered in the GeometryReader.
+            let center = CGPoint(x: diameter / 2, y: diameter / 2)
+            let markerAngle = Angle.degrees(160 + (220 * progress))
+            let marker = CGPoint(
+                x: center.x + radius * CGFloat(cos(markerAngle.radians)),
+                y: center.y + radius * CGFloat(sin(markerAngle.radians))
+            )
+
+            ZStack {
+                Circle()
+                    // A regular stroke is centered on Circle's outer path. Inset
+                    // the path so its centerline uses the same radius as marker.
+                    .inset(by: lineWidth / 2)
+                    .trim(from: 0, to: Self.sweepFraction)
+                    .stroke(
+                        GaugePalette.mutedTrackColor,
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(160))
+
+                if score != nil {
+                    Circle()
+                        .inset(by: lineWidth / 2)
+                        .trim(from: 0, to: Self.sweepFraction * CGFloat(progress))
+                        .stroke(
+                            GaugePalette.dialGradient,
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(160))
+
+                    Circle()
+                        .fill(GaugePalette.scoreColor(score ?? 0))
+                        .overlay {
+                            Circle()
+                                .stroke(Color(uiColor: .systemBackground), lineWidth: max(2, lineWidth * 0.12))
+                        }
+                        .frame(width: lineWidth * 0.72, height: lineWidth * 0.72)
+                        .position(marker)
+                        .shadow(color: .black.opacity(0.16), radius: 3, y: 1)
+                }
+
+                VStack(spacing: 5) {
+                    if let score {
+                        Text("\(Int(max(0, min(score, 100)).rounded()))")
+                            .font(.system(size: diameter * 0.21, weight: .bold, design: .rounded))
+                            .contentTransition(.numericText(value: score))
+                    } else {
+                        Text("—")
+                            .font(.system(size: diameter * 0.21, weight: .bold, design: .rounded))
+                    }
+
+                    Text(rating?.displayName ?? "Unavailable")
+                        .font(.system(size: max(13, diameter * 0.075), weight: .semibold, design: .rounded))
+                        .foregroundStyle(rating.map(GaugePalette.ratingColor) ?? Color.secondary)
+
+                    if isStale {
+                        Label("Stale", systemImage: "clock.badge.exclamationmark")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .offset(y: diameter * 0.035)
             }
+            .frame(width: diameter, height: diameter)
+            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(Color(.systemBackground).opacity(0.7))
-                .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
-        )
+        .aspectRatio(1, contentMode: .fit)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Fear and Greed Index")
+        .accessibilityValue(accessibilityValue)
+    }
+
+    private var accessibilityValue: String {
+        guard let score, let rating else { return "Unavailable" }
+        let staleSuffix = isStale ? ", stale" : ""
+        return "\(Int(score.rounded())) out of 100, \(rating.displayName)\(staleSuffix)"
     }
 }
 
-#Preview {
-    GaugeDialView()
-        .environmentObject(GaugeViewModel.preview)
+#Preview("Dial") {
+    GaugeDialView(score: 72, rating: .greed)
+        .frame(width: 300, height: 300)
+        .padding()
+}
+
+#Preview("Unavailable") {
+    GaugeDialView(score: nil, rating: nil, isStale: true)
+        .frame(width: 300, height: 300)
+        .padding()
 }
